@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rapbattle_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rapbattle_user
+      POSTGRES_PASSWORD: rapbattle_secret_pwd
+      POSTGRES_DB: rapbattle_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rapbattle_user -d rapbattle_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: rapbattle_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+    container_name: rapbattle_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      HOST: "0.0.0.0"
+      DATABASE_URL: postgresql://rapbattle_user:rapbattle_secret_pwd@postgres:5432/rapbattle_db
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: super_secret_jwt_signing_key_production_32char_min
+      SESSION_SECRET: super_secret_session_key_production_32char_min
+      MCP_TOKEN_SECRET: mcp_oauth_secret_key_production_32chars
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: services/frontend/Dockerfile
+    container_name: rapbattle_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_WS_URL: ws://localhost:4000/realtime
+
+volumes:
+  pgdata:
+  redisdata:

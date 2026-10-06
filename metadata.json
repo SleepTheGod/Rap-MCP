@@ -1,0 +1,6 @@
+{
+  "name": "MCP Rap Battle",
+  "description": "Production Ready MCP Rap Battle Agent with interactive AI battles, canonical scoring, and full MCP architecture.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
